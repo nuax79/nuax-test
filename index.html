@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>형수찾기 (20×20, 지뢰 40개)</title>
+  <style>
+    body { background: #f0f2f5; font-family: 'Noto Sans KR', sans-serif; }
+    .container { max-width: 680px; margin: 40px auto; text-align: center; }
+    h2 { margin-bottom: 20px; color: #333; }
+    #controls { margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    button { padding: 6px 12px; border: none; background: #4CAF50; color: #fff; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    button:hover { background: #45a049; }
+    #mine-count { font-size: 1.1em; color: #555; }
+    #board {
+      display: grid;
+      grid-template-columns: repeat(20, 28px);
+      grid-template-rows: repeat(20, 28px);
+      gap: 4px;
+      justify-content: center;
+    }
+    .cell {
+      width: 28px; height: 28px;
+      background-color: #888;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; color: #fff;
+      cursor: pointer; transition: background 0.2s;
+      user-select: none;
+    }
+    .cell:hover { background-color: #777; }
+    .cell.revealed {
+      background-color: #ddd;
+      cursor: default;
+      color: #333;
+      box-shadow: inset 0 0 2px rgba(0,0,0,0.3);
+    }
+    .cell.revealed.mine { background-color: #e74c3c; }
+    .cell.revealed.number1 { color: #1e90ff; }
+    .cell.revealed.number2 { color: #27ae60; }
+    .cell.revealed.number3 { color: #e67e22; }
+    .cell.revealed.number4 { color: #8e44ad; }
+    .cell.revealed.number5 { color: #c0392b; }
+    .cell.revealed.number6 { color: #16a085; }
+    .cell.revealed.number7 { color: #34495e; }
+    .cell.revealed.number8 { color: #7f8c8d; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>형수찾기 (20×20, 지뢰 40개)</h2>
+  <div id="controls">
+    <button id="reset">다시 시작</button>
+    <div id="mine-count">남은 지뢰: <span id="mines-left">40</span></div>
+  </div>
+  <div id="board"></div>
+</div>
+<script>
+  const ROWS = 20, COLS = 20, MINES = 40;
+  const boardEl = document.getElementById('board');
+  const resetBtn = document.getElementById('reset');
+  const minesLeftEl = document.getElementById('mines-left');
+  let grid = [], minesLeft = MINES, revealedCount = 0;
+
+  function initGrid() {
+    grid = [];
+    for (let r = 0; r < ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < COLS; c++) {
+        row.push({ mine: false, adj: 0, revealed: false });
+      }
+      grid.push(row);
+    }
+    minesLeft = MINES;
+    revealedCount = 0;
+    minesLeftEl.textContent = minesLeft;
+  }
+
+  function plantMines() {
+    let planted = 0;
+    while (planted < MINES) {
+      const r = Math.floor(Math.random() * ROWS);
+      const c = Math.floor(Math.random() * COLS);
+      if (!grid[r][c].mine) {
+        grid[r][c].mine = true;
+        planted++;
+      }
+    }
+  }
+
+  function calcAdjacents() {
+    const dirs = [-1,0,1];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c].mine) continue;
+        let count = 0;
+        dirs.forEach(dr => dirs.forEach(dc => {
+          const nr = r + dr, nc = c + dc;
+          if (nr>=0 && nr<ROWS && nc>=0 && nc<COLS && grid[nr][nc].mine) count++;
+        }));
+        grid[r][c].adj = count;
+      }
+    }
+  }
+
+  function renderBoard() {
+    boardEl.innerHTML = '';
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.id = `cell-${r}-${c}`;
+        cell.addEventListener('click', () => onClickCell(r, c));
+        boardEl.appendChild(cell);
+      }
+    }
+  }
+
+  function onClickCell(r, c) {
+    const cellData = grid[r][c];
+    if (cellData.revealed) return;
+    cellData.revealed = true;
+    const el = document.getElementById(`cell-${r}-${c}`);
+    revealedCount++;
+    el.classList.add('revealed');
+    if (cellData.mine) {
+      el.classList.add('mine');
+      el.innerHTML = '<img src="img/hs.png" style="width:100%;height:100%;">';
+      revealAllMines();
+      setTimeout(() => alert('💥 지뢰를 밟으셨습니다! 게임 오버 💥'), 100);
+    } else {
+      if (cellData.adj > 0) {
+        el.textContent = cellData.adj;
+        el.classList.add('number' + cellData.adj);
+      } else {
+        floodFill(r, c);
+      }
+      if (revealedCount === ROWS * COLS - MINES) {
+        setTimeout(() => alert('🎉 축하합니다! 지뢰를 모두 피했습니다! 🎉'), 100);
+      }
+    }
+    updateMinesLeft();
+  }
+
+  function floodFill(r, c) {
+    const dirs = [-1,0,1];
+    dirs.forEach(dr => dirs.forEach(dc => {
+      const nr = r + dr, nc = c + dc;
+      if (nr>=0 && nr<ROWS && nc>=0 && nc<COLS) {
+        const neighbor = grid[nr][nc];
+        if (!neighbor.revealed && !neighbor.mine) {
+          neighbor.revealed = true;
+          revealedCount++;
+          const el = document.getElementById(`cell-${nr}-${nc}`);
+          el.classList.add('revealed');
+          if (neighbor.adj > 0) {
+            el.textContent = neighbor.adj;
+            el.classList.add('number' + neighbor.adj);
+          } else {
+            floodFill(nr, nc);
+          }
+        }
+      }
+    }));
+  }
+
+  function revealAllMines() {
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c].mine) {
+          const el = document.getElementById(`cell-${r}-${c}`);
+          if (!grid[r][c].revealed) {
+            el.classList.add('revealed', 'mine');
+            el.innerHTML = '<img src="img/hs.png" style="width:100%;height:100%;">';
+          }
+        }
+      }
+    }
+  }
+
+  function updateMinesLeft() {
+    const flagged = 0; // 추후 깃발 기능 추가 시 반영
+    minesLeftEl.textContent = minesLeft - flagged;
+  }
+
+  function startGame() {
+    initGrid();
+    plantMines();
+    calcAdjacents();
+    renderBoard();
+  }
+
+  resetBtn.addEventListener('click', startGame);
+  startGame();
+</script>
+</body>
+</html>
