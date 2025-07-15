@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>형수찾기</title>
+  <style>
+    #board {
+      display: grid;
+      grid-template-columns: repeat(9, 30px);
+      grid-template-rows: repeat(9, 30px);
+      gap: 2px;
+      margin: 20px auto;
+      width: max-content;
+    }
+    .cell {
+      width: 30px;
+      height: 30px;
+      background-color: #bbb;
+      text-align: center;
+      line-height: 30px;
+      font-weight: bold;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cell.revealed {
+      background-color: #e0e0e0;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">지뢰찾기 (9×9, 지뢰 10개)</h2>
+  <div id="board"></div>
+
+  <script>
+    const ROWS = 9, COLS = 9, MINES = 10;
+    const boardEl = document.getElementById('board');
+    let grid = [];
+
+    // 1) 그리드 초기화
+    function initGrid() {
+      grid = [];
+      for (let r = 0; r < ROWS; r++) {
+        const row = [];
+        for (let c = 0; c < COLS; c++) {
+          row.push({ mine: false, adj: 0, revealed: false });
+        }
+        grid.push(row);
+      }
+    }
+
+    // 2) 지뢰 배치
+    function plantMines() {
+      let planted = 0;
+      while (planted < MINES) {
+        const r = Math.floor(Math.random() * ROWS);
+        const c = Math.floor(Math.random() * COLS);
+        if (!grid[r][c].mine) {
+          grid[r][c].mine = true;
+          planted++;
+        }
+      }
+    }
+
+    // 3) 주변 지뢰 개수 계산
+    function calcAdjacents() {
+      const dirs = [-1,0,1];
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (grid[r][c].mine) continue;
+          let count = 0;
+          dirs.forEach(dr => dirs.forEach(dc => {
+            const nr = r + dr, nc = c + dc;
+            if (nr>=0 && nr<ROWS && nc>=0 && nc<COLS && grid[nr][nc].mine) {
+              count++;
+            }
+          }));
+          grid[r][c].adj = count;
+        }
+      }
+    }
+
+    // 4) 보드 렌더링
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.id = `cell-${r}-${c}`;
+          cell.addEventListener('click', () => onClickCell(r, c));
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    // 5) 셀 클릭 핸들러
+    function onClickCell(r, c) {
+      const cellData = grid[r][c];
+      if (cellData.revealed) return;
+      cellData.revealed = true;
+      const el = document.getElementById(`cell-${r}-${c}`);
+      el.classList.add('revealed');
+
+      if (cellData.mine) {
+        // 지뢰 클릭: 이미지 표시 후 게임 오버
+        el.innerHTML = `<img src="img/hs.png" style="width:100%; height:100%;">`;
+        revealAllMines();
+        setTimeout(() => alert('💥 지뢰를 밟으셨습니다! 게임 오버 💥'), 100);
+      } else if (cellData.adj > 0) {
+        // 주변 지뢰 개수 표시
+        el.textContent = cellData.adj;
+      } else {
+        // 주변 0개면 재귀적으로 주변 셀 오픈
+        el.textContent = '';
+        floodFill(r, c);
+      }
+    }
+
+    // 6) 주변 0 셀 자동 개방 (Flood fill)
+    function floodFill(r, c) {
+      const dirs = [-1,0,1];
+      dirs.forEach(dr => dirs.forEach(dc => {
+        const nr = r + dr, nc = c + dc;
+        if (nr>=0 && nr<ROWS && nc>=0 && nc<COLS) {
+          const neighbor = grid[nr][nc];
+          if (!neighbor.revealed && !neighbor.mine) {
+            neighbor.revealed = true;
+            const el = document.getElementById(`cell-${nr}-${nc}`);
+            el.classList.add('revealed');
+            if (neighbor.adj > 0) {
+              el.textContent = neighbor.adj;
+            } else {
+              floodFill(nr, nc);
+            }
+          }
+        }
+      }));
+    }
+
+    // 7) 모든 지뢰 공개
+    function revealAllMines() {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (grid[r][c].mine) {
+            const el = document.getElementById(`cell-${r}-${c}`);
+            if (!grid[r][c].revealed) {
+              el.innerHTML = `<img src="img/hs.png" style="width:100%; height:100%;">`;
+              el.classList.add('revealed');
+            }
+          }
+        }
+      }
+    }
+
+    // 게임 초기 실행
+    function startGame() {
+      initGrid();
+      plantMines();
+      calcAdjacents();
+      renderBoard();
+    }
+
+    startGame();
+  </script>
+</body>
+</html>
