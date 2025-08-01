@@ -44,6 +44,10 @@
     .cell.revealed.number6 { color: #16a085; }
     .cell.revealed.number7 { color: #34495e; }
     .cell.revealed.number8 { color: #7f8c8d; }
+    .cell.flagged {
+      background-color: #f39c12 !important;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -55,6 +59,7 @@
   </div>
   <div id="board"></div>
 </div>
+
 <script>
   const ROWS = 20, COLS = 20, MINES = 40;
   const boardEl = document.getElementById('board');
@@ -67,7 +72,7 @@
     for (let r = 0; r < ROWS; r++) {
       const row = [];
       for (let c = 0; c < COLS; c++) {
-        row.push({ mine: false, adj: 0, revealed: false });
+        row.push({ mine: false, adj: 0, revealed: false, flagged: false });
       }
       grid.push(row);
     }
@@ -111,6 +116,10 @@
         cell.className = 'cell';
         cell.id = `cell-${r}-${c}`;
         cell.addEventListener('click', () => onClickCell(r, c));
+        cell.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          onRightClickCell(r, c);
+        });
         boardEl.appendChild(cell);
       }
     }
@@ -118,11 +127,14 @@
 
   function onClickCell(r, c) {
     const cellData = grid[r][c];
-    if (cellData.revealed) return;
+    if (cellData.revealed || cellData.flagged) return;
+
     cellData.revealed = true;
     const el = document.getElementById(`cell-${r}-${c}`);
-    revealedCount++;
     el.classList.add('revealed');
+    el.textContent = '';
+    revealedCount++;
+
     if (cellData.mine) {
       el.classList.add('mine');
       el.innerHTML = '<img src="img/hs.png" style="width:100%;height:100%;">';
@@ -142,17 +154,36 @@
     updateMinesLeft();
   }
 
+  function onRightClickCell(r, c) {
+    const cellData = grid[r][c];
+    const el = document.getElementById(`cell-${r}-${c}`);
+    if (cellData.revealed) return;
+
+    if (cellData.flagged) {
+      cellData.flagged = false;
+      el.textContent = '';
+      el.classList.remove('flagged');
+    } else {
+      cellData.flagged = true;
+      el.textContent = '🚩';
+      el.classList.add('flagged');
+    }
+
+    updateMinesLeft();
+  }
+
   function floodFill(r, c) {
     const dirs = [-1,0,1];
     dirs.forEach(dr => dirs.forEach(dc => {
       const nr = r + dr, nc = c + dc;
       if (nr>=0 && nr<ROWS && nc>=0 && nc<COLS) {
         const neighbor = grid[nr][nc];
-        if (!neighbor.revealed && !neighbor.mine) {
+        if (!neighbor.revealed && !neighbor.mine && !neighbor.flagged) {
           neighbor.revealed = true;
           revealedCount++;
           const el = document.getElementById(`cell-${nr}-${nc}`);
           el.classList.add('revealed');
+          el.textContent = '';
           if (neighbor.adj > 0) {
             el.textContent = neighbor.adj;
             el.classList.add('number' + neighbor.adj);
@@ -167,9 +198,10 @@
   function revealAllMines() {
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        if (grid[r][c].mine) {
+        const cell = grid[r][c];
+        if (cell.mine) {
           const el = document.getElementById(`cell-${r}-${c}`);
-          if (!grid[r][c].revealed) {
+          if (!cell.revealed) {
             el.classList.add('revealed', 'mine');
             el.innerHTML = '<img src="img/hs.png" style="width:100%;height:100%;">';
           }
@@ -179,8 +211,13 @@
   }
 
   function updateMinesLeft() {
-    const flagged = 0; // 추후 깃발 기능 추가 시 반영
-    minesLeftEl.textContent = minesLeft - flagged;
+    let flagged = 0;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c].flagged) flagged++;
+      }
+    }
+    minesLeftEl.textContent = MINES - flagged;
   }
 
   function startGame() {
